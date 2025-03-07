@@ -173,12 +173,9 @@ echo "msusk" > /tmp/tripwire-site.key
 rm -f /etc/tripwire/msuslk.key /etc/tripwire/msusk.key
 
 # Generate new Tripwire keys without prompts
-twadmin --generate-keys --local-keyfile /etc/tripwire/msuslk.key --site-keyfile /etc/tripwire/msusk.key << EOF
-msuslk
-msusk
-EOF
+twadmin --generate-keys --local-keyfile /etc/tripwire/msuslk.key
+twadmin --generate-keys --site-keyfile /etc/tripwire/msusk.key
 
-twadmin --generate-keys --site-keyfile /etc/tripwire/msusk.key < /tmp/tripwire-site.key
 
 # Initialize Tripwire and auto-confirm overwrites
 echo "🛠 Initializing Tripwire..."
