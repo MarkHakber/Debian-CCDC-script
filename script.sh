@@ -85,8 +85,8 @@ else
     echo "⚠️ 'wall' command not found. Skipping login notification."
 fi
 
-# Install UFW if not installed
-if ! command -v ufw &> /dev/null; then
+# Ensure UFW is installed even if missing
+if ! dpkg -l | grep -qw ufw; then
     echo "📦 Installing UFW..."
     apt update && apt install -y ufw
 else
