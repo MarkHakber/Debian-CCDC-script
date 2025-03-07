@@ -85,6 +85,22 @@ else
     echo "⚠️ 'wall' command not found. Skipping login notification."
 fi
 
+echo "🔄 Fixing package repository issues..."
+
+# Add missing GPG keys
+apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 71DAEAA8A4D4CAB6 4F4EA0AAE5267A6C
+
+# If keyserver fails, try downloading keys manually
+wget -qO - https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x71DAEAA8A4D4CAB6 | apt-key add -
+wget -qO - https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x4F4EA0AAE5267A6C | apt-key add -
+
+# Disable problematic repositories
+sed -i 's/^deb/#deb/' /etc/apt/sources.list.d/sury-php.list 2>/dev/null
+sed -i 's/^deb/#deb/' /etc/apt/sources.list.d/ondrej-php.list 2>/dev/null
+
+# Update package lists
+apt update
+
 # Bruteforce remove and reinstall UFW
 echo "🚨 Forcefully reinstalling UFW..."
 apt-get remove --purge -y ufw
@@ -125,80 +141,74 @@ ufw --force enable
 
 echo "✅ UFW firewall installation & configuration complete!"
 
-# Force reinstall Fail2Ban
 echo "🔥 Forcefully reinstalling Fail2Ban..."
 
-# Remove existing installation
+# Remove Fail2Ban fully
 apt remove --purge -y fail2ban
-
-# Update package lists and install Fail2Ban
+rm -rf /etc/fail2ban /var/lib/fail2ban
 apt update && apt install -y fail2ban
 
 # Verify installation
-if command -v fail2ban-client &> /dev/null; then
-    echo "✅ Fail2Ban successfully installed!"
-else
+if ! command -v fail2ban-client &> /dev/null; then
     echo "❌ Fail2Ban installation failed!"
     exit 1
 fi
 
-# Enable Fail2Ban service
-systemctl enable fail2ban
-systemctl start fail2ban
+echo "✅ Fail2Ban successfully installed!"
 
-# Create a jail.local configuration file
-echo "🔧 Configuring Fail2Ban..."
-cp /etc/fail2ban/jail.conf /etc/fail2ban/jail.local
+# Enable and start Fail2Ban
+systemctl enable --now fail2ban
 
-# Apply SSH brute-force protection settings
+# Ensure the jail config file exists
+if [[ ! -f /etc/fail2ban/jail.local ]]; then
+    echo "🔧 Creating Fail2Ban jail.local configuration..."
+    cp /etc/fail2ban/jail.conf /etc/fail2ban/jail.local
+fi
+
+# Apply SSH brute-force protection
 cat <<EOF > /etc/fail2ban/jail.local
+[DEFAULT]
+bantime = 1h
+findtime = 10m
+maxretry = 3
+logtarget = /var/log/fail2ban.log
+
 [sshd]
 enabled = true
 port = ssh
 filter = sshd
-bantime = 1h
-findtime = 10m
-maxretry = 3
 logpath = /var/log/auth.log
-logtarget = /var/log/fail2ban.log
 EOF
 
-# Restart Fail2Ban to apply changes
+# Restart Fail2Ban
 systemctl restart fail2ban
 
-# Verify Fail2Ban status
+# Verify status
 fail2ban-client status sshd
-
-echo "✅ Fail2Ban installation & configuration complete!"
+echo "✅ Fail2Ban configuration complete!"
 
 # Force reinstall Lynis
 echo "🔥 Forcefully reinstalling Lynis..."
 
-# Remove existing installation
+# Remove Lynis completely
 apt remove --purge -y lynis
+rm -rf /var/log/lynis /etc/lynis
 
 # Update package lists and install Lynis
 apt update && apt install -y lynis
 
 # Verify installation
-if command -v lynis &> /dev/null; then
-    echo "✅ Lynis successfully installed!"
-else
+if ! command -v lynis &> /dev/null; then
     echo "❌ Lynis installation failed!"
     exit 1
 fi
 
 # Run an initial Lynis audit
 echo "🔍 Running initial Lynis security audit..."
-lynis audit system --quick
+lynis audit system --quick | tee /var/log/lynis_audit.log
 
-# Store Lynis report
-REPORT_FILE="/var/log/lynis_audit.log"
-lynis audit system --quiet | tee "$REPORT_FILE"
-
-# Verify Lynis installation
 echo "✅ Lynis installation complete!"
-echo "📊 Report saved at: $REPORT_FILE"
+echo "📊 Report saved at: /var/log/lynis_audit.log"
 
 echo "🎉 Script execution complete!"
 
