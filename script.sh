@@ -115,10 +115,10 @@ ufw allow 123/udp     # NTP (Network Time Protocol)
 ufw allow 22/tcp      # SSH (Only if needed, otherwise keep blocked)
 
 # Allow IPv6 versions as well
-ufw allow 53/udp from any proto udp
-ufw allow 53/tcp from any proto tcp
-ufw allow 123/udp from any proto udp
-ufw allow 22/tcp from any proto tcp
+ufw allow proto udp from any to any port 53
+ufw allow proto tcp from any to any port 53
+ufw allow proto udp from any to any port 123
+ufw allow proto tcp from any to any port 22
 
 # Enable UFW
 ufw --force enable
