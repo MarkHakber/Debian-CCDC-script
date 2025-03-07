@@ -125,12 +125,21 @@ ufw --force enable
 
 echo "✅ UFW firewall installation & configuration complete!"
 
-# Install Fail2Ban if not installed
-if ! command -v fail2ban-client &> /dev/null; then
-    echo "📦 Installing Fail2Ban..."
-    apt update && apt install -y fail2ban
+# Force reinstall Fail2Ban
+echo "🔥 Forcefully reinstalling Fail2Ban..."
+
+# Remove existing installation
+apt remove --purge -y fail2ban
+
+# Update package lists and install Fail2Ban
+apt update && apt install -y fail2ban
+
+# Verify installation
+if command -v fail2ban-client &> /dev/null; then
+    echo "✅ Fail2Ban successfully installed!"
 else
-    echo "✅ Fail2Ban is already installed."
+    echo "❌ Fail2Ban installation failed!"
+    exit 1
 fi
 
 # Enable Fail2Ban service
@@ -162,12 +171,21 @@ fail2ban-client status sshd
 
 echo "✅ Fail2Ban installation & configuration complete!"
 
-# Install Lynis if not installed
-if ! command -v lynis &> /dev/null; then
-    echo "📦 Installing Lynis..."
-    apt update && apt install -y lynis
+# Force reinstall Lynis
+echo "🔥 Forcefully reinstalling Lynis..."
+
+# Remove existing installation
+apt remove --purge -y lynis
+
+# Update package lists and install Lynis
+apt update && apt install -y lynis
+
+# Verify installation
+if command -v lynis &> /dev/null; then
+    echo "✅ Lynis successfully installed!"
 else
-    echo "✅ Lynis is already installed."
+    echo "❌ Lynis installation failed!"
+    exit 1
 fi
 
 # Run an initial Lynis audit
