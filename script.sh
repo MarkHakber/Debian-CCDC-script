@@ -156,46 +156,6 @@ fail2ban-client status sshd
 
 echo "✅ Fail2Ban installation & configuration complete!"
 
-# Install Tripwire if not installed
-if ! command -v tripwire &> /dev/null; then
-    echo "📦 Installing Tripwire..."
-    apt update && apt install -y tripwire
-else
-    echo "✅ Tripwire is already installed."
-fi
-
-# Initialize Tripwire with local and site keys
-echo "🔑 Configuring Tripwire..."
-echo "msulk" > /tmp/tripwire-local.key
-echo "msusk" > /tmp/tripwire-site.key
-
-# Remove old keys if they exist to prevent overwrite prompts
-rm -f /etc/tripwire/msuslk.key /etc/tripwire/msusk.key
-
-# Generate new Tripwire keys without prompts
-twadmin --generate-keys --local-keyfile /etc/tripwire/msuslk.key < /tmp/tripwire-local.key
-twadmin --generate-keys --site-keyfile /etc/tripwire/msusk.key < /tmp/tripwire-site.key
-
-# Initialize Tripwire and auto-confirm overwrites
-echo "🛠 Initializing Tripwire..."
-echo -e "y\ny\n" | tripwire --init
-
-# Verify that initialization completed
-if [ $? -eq 0 ]; then
-    echo "✅ Tripwire initialization completed successfully."
-else
-    echo "❌ Tripwire initialization failed."
-fi
-
-
-# Clean up temporary keys
-rm -f /tmp/tripwire-local.key /tmp/tripwire-site.key
-
-# Verify Tripwire status
-tripwire --check
-
-echo "✅ Tripwire installation & configuration complete!"
-
 # Install Lynis if not installed
 if ! command -v lynis &> /dev/null; then
     echo "📦 Installing Lynis..."
