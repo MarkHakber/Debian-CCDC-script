@@ -1,171 +1,152 @@
-# the password change 
-
-# ================================================
-
 #!/bin/bash
+set -euo pipefail
 
 # Ensure the script is run as root
 if [[ $EUID -ne 0 ]]; then
-    echo "❌ This script must be run as root!" 
-    exit 1
+  echo "❌ This script must be run as root!"
+  exit 1
 fi
 
-# Set the new password
+# -------------------------------
+# 1. Change Passwords
+# -------------------------------
 NEW_PASSWORD="Orhon9b@22hunter"
 
 # Change the root password
-echo "root:$NEW_PASSWORD" | chpasswd
-echo "✅ Root password changed."
+echo "Changing root password..."
+echo "root:$NEW_PASSWORD" | chpasswd && echo "✅ Root password changed." || { echo "❌ Failed to change root password."; exit 1; }
 
-# Check if sysadmin user exists and change its password
+# Change sysadmin password if the user exists
 if id "sysadmin" &>/dev/null; then
-    echo "sysadmin:$NEW_PASSWORD" | chpasswd
-    echo "✅ Sysadmin password changed."
+  echo "Changing sysadmin password..."
+  echo "sysadmin:$NEW_PASSWORD" | chpasswd && echo "✅ Sysadmin password changed." || echo "❌ Failed to change sysadmin password."
 else
-    echo "⚠️ User 'sysadmin' does not exist. Skipping."
+  echo "⚠️ User 'sysadmin' does not exist. Skipping."
 fi
 
 echo "🎉 Password change complete!"
 
-# ================================================
-# ================================================
-# ================================================
-
-# Ensure the script is run as root
-if [[ $EUID -ne 0 ]]; then
-    echo "❌ This script must be run as root!"
-    exit 1
-fi
-
+# -------------------------------
+# 2. Environment Checks & Service Management
+# -------------------------------
 echo "🔄 Checking environment on MWCCDC Debian machine..."
 
-# 🟢 1️⃣ Check if SSH service exists before stopping
-if systemctl list-units --type=service | grep -q ssh; then
-    systemctl stop ssh
-    if systemctl is-active --quiet ssh; then
-        echo "❌ Failed to stop SSH!"
-    else
-        echo "✅ SSH service has been stopped."
-    fi
+# Stop SSH service if running
+if systemctl is-active --quiet ssh; then
+  systemctl stop ssh
+  if systemctl is-active --quiet ssh; then
+    echo "❌ Failed to stop SSH!"
+  else
+    echo "✅ SSH service stopped."
+  fi
 else
-    echo "⚠️ SSH service not found. Skipping."
+  echo "⚠️ SSH service not running. Skipping."
 fi
 
-# 🟢 2️⃣ Check if BIND exists before backup
+# Backup BIND directory if it exists
 if [[ -d "/etc/bind" ]]; then
-    BACKUP_DIR="/root/backit"
-    TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
-    BACKUP_DEST="$BACKUP_DIR/bind_backup_$TIMESTAMP"
-
-    mkdir -p "$BACKUP_DIR"
-    cp -r /etc/bind "$BACKUP_DEST"
-
-    if [[ -d "$BACKUP_DEST" ]]; then
-        echo "✅ BIND backup successful: $BACKUP_DEST"
-    else
-        echo "❌ BIND backup failed!"
-    fi
+  BACKUP_DIR="/root/backit"
+  TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
+  BACKUP_DEST="$BACKUP_DIR/bind_backup_$TIMESTAMP"
+  mkdir -p "$BACKUP_DIR"
+  cp -r /etc/bind "$BACKUP_DEST"
+  if [[ -d "$BACKUP_DEST" ]]; then
+    echo "✅ BIND backup successful: $BACKUP_DEST"
+  else
+    echo "❌ BIND backup failed!"
+  fi
 else
-    echo "⚠️ BIND directory (/etc/bind) not found. Skipping backup."
+  echo "⚠️ /etc/bind not found. Skipping backup."
 fi
 
-# 🟢 3️⃣ Add login notification with `wall`
-if command -v wall &> /dev/null; then
-    echo 'wall "$(id -un) logged in from $(echo $SSH_CLIENT | awk '"'"'{print $1}'"'"')" ' >> ~/.bashrc
-    echo 'wall "$(id -un) logged in from $(echo $SSH_CLIENT | awk '"'"'{print $1}'"'"')" ' | sudo tee /etc/profile.d/login_wall.sh > /dev/null
-    sudo chmod +x /etc/profile.d/login_wall.sh
-
-    # Verify `wall` works
-    if grep -q "wall \"\$(id -un) logged in from" ~/.bashrc; then
-        echo "✅ Login notification added to .bashrc."
-    else
-        echo "❌ Failed to add login notification to .bashrc!"
-    fi
+# -------------------------------
+# 3. Add Login Notification
+# -------------------------------
+if command -v wall &>/dev/null; then
+  LOGIN_WALL_SCRIPT="/etc/profile.d/login_wall.sh"
+  cat <<'EOF' > "$LOGIN_WALL_SCRIPT"
+#!/bin/bash
+if [ -n "${SSH_CLIENT:-}" ]; then
+  IP=$(echo "$SSH_CLIENT" | awk '{print $1}')
+  wall "$(id -un) logged in from $IP"
+fi
+EOF
+  chmod +x "$LOGIN_WALL_SCRIPT"
+  echo "✅ Login notification configured in $LOGIN_WALL_SCRIPT"
 else
-    echo "⚠️ 'wall' command not found. Skipping login notification."
+  echo "⚠️ 'wall' command not found. Skipping login notification."
 fi
 
+# -------------------------------
+# 4. Fix Package Repository Issues
+# -------------------------------
 echo "🔄 Fixing package repository issues..."
 
-# Add missing GPG keys
-apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 71DAEAA8A4D4CAB6 4F4EA0AAE5267A6C
+# Add missing GPG keys (note: apt-key is deprecated in newer systems)
+if ! apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 71DAEAA8A4D4CAB6 4F4EA0AAE5267A6C; then
+  wget -qO - "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x71DAEAA8A4D4CAB6" | apt-key add -
+  wget -qO - "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x4F4EA0AAE5267A6C" | apt-key add -
+fi
 
-# If keyserver fails, try downloading keys manually
-wget -qO - https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x71DAEAA8A4D4CAB6 | apt-key add -
-wget -qO - https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x4F4EA0AAE5267A6C | apt-key add -
-
-# Disable problematic repositories
-sed -i 's/^deb/#deb/' /etc/apt/sources.list.d/sury-php.list 2>/dev/null
-sed -i 's/^deb/#deb/' /etc/apt/sources.list.d/ondrej-php.list 2>/dev/null
+# Disable problematic repositories if they exist
+sed -i 's/^\(deb\)/#\1/' /etc/apt/sources.list.d/sury-php.list 2>/dev/null || true
+sed -i 's/^\(deb\)/#\1/' /etc/apt/sources.list.d/ondrej-php.list 2>/dev/null || true
 
 # Update package lists
 apt update
 
-# Bruteforce remove and reinstall UFW
+# -------------------------------
+# 5. Reinstall & Configure UFW
+# -------------------------------
 echo "🚨 Forcefully reinstalling UFW..."
 apt-get remove --purge -y ufw
 apt-get update
 apt-get install -y ufw
 
-# Verify UFW installation
-if command -v ufw &> /dev/null; then
-    echo "✅ UFW successfully installed."
+if command -v ufw &>/dev/null; then
+  echo "✅ UFW installed."
 else
-    echo "❌ UFW installation failed. Exiting..."
-    exit 1
+  echo "❌ UFW installation failed. Exiting..."
+  exit 1
 fi
 
 echo "🔒 Configuring UFW firewall..."
-
-# Reset firewall rules to prevent conflicts
 ufw --force reset
-
-# Set default policies
 ufw default deny incoming
 ufw default allow outgoing
-
-# Allow necessary services (adjust as needed)
 ufw allow 53/udp      # DNS
 ufw allow 53/tcp      # DNS over TCP
-ufw allow 123/udp     # NTP (Network Time Protocol)
-ufw allow 22/tcp      # SSH (Only if needed, otherwise keep blocked)
-
-# Allow IPv6 versions as well
+ufw allow 123/udp     # NTP
+ufw allow 22/tcp      # SSH
 ufw allow proto udp from any to any port 53
 ufw allow proto tcp from any to any port 53
 ufw allow proto udp from any to any port 123
 ufw allow proto tcp from any to any port 22
-
-# Enable UFW
 ufw --force enable
+echo "✅ UFW firewall configuration complete!"
 
-echo "✅ UFW firewall installation & configuration complete!"
-
-echo "🔥 Forcefully reinstalling Fail2Ban..."
-
-# Remove Fail2Ban fully
+# -------------------------------
+# 6. Reinstall & Configure Fail2Ban
+# -------------------------------
+echo "🔥 Reinstalling Fail2Ban..."
 apt remove --purge -y fail2ban
 rm -rf /etc/fail2ban /var/lib/fail2ban
 apt update && apt install -y fail2ban
 
-# Verify installation
-if ! command -v fail2ban-client &> /dev/null; then
-    echo "❌ Fail2Ban installation failed!"
-    exit 1
+if command -v fail2ban-client &>/dev/null; then
+  echo "✅ Fail2Ban installed."
+else
+  echo "❌ Fail2Ban installation failed!"
+  exit 1
 fi
 
-echo "✅ Fail2Ban successfully installed!"
-
-# Enable and start Fail2Ban
 systemctl enable --now fail2ban
 
-# Ensure the jail config file exists
+# Create jail.local if it doesn't exist and configure SSH protection
 if [[ ! -f /etc/fail2ban/jail.local ]]; then
-    echo "🔧 Creating Fail2Ban jail.local configuration..."
-    cp /etc/fail2ban/jail.conf /etc/fail2ban/jail.local
+  cp /etc/fail2ban/jail.conf /etc/fail2ban/jail.local
 fi
 
-# Apply SSH brute-force protection
 cat <<EOF > /etc/fail2ban/jail.local
 [DEFAULT]
 bantime = 1h
@@ -180,37 +161,28 @@ filter = sshd
 logpath = /var/log/auth.log
 EOF
 
-# Restart Fail2Ban
 systemctl restart fail2ban
-
-# Verify status
 fail2ban-client status sshd
 echo "✅ Fail2Ban configuration complete!"
 
-# Force reinstall Lynis
-echo "🔥 Forcefully reinstalling Lynis..."
-
-# Remove Lynis completely
+# -------------------------------
+# 7. Reinstall & Run Lynis
+# -------------------------------
+echo "🔥 Reinstalling Lynis..."
 apt remove --purge -y lynis
 rm -rf /var/log/lynis /etc/lynis
-
-# Update package lists and install Lynis
 apt update && apt install -y lynis
 
-# Verify installation
-if ! command -v lynis &> /dev/null; then
-    echo "❌ Lynis installation failed!"
-    exit 1
+if command -v lynis &>/dev/null; then
+  echo "✅ Lynis installed."
+else
+  echo "❌ Lynis installation failed!"
+  exit 1
 fi
 
-# Run an initial Lynis audit
 echo "🔍 Running initial Lynis security audit..."
 lynis audit system --quick | tee /var/log/lynis_audit.log
-
 echo "✅ Lynis installation complete!"
-echo "📊 Report saved at: /var/log/lynis_audit.log"
+echo "📊 Audit report saved at: /var/log/lynis_audit.log"
 
 echo "🎉 Script execution complete!"
-
-
-
