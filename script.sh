@@ -85,21 +85,19 @@ else
     echo "⚠️ 'wall' command not found. Skipping login notification."
 fi
 
-# Ensure UFW is installed properly
-echo "🔍 Checking if UFW is installed..."
-if ! command -v ufw &> /dev/null; then
-    echo "📦 Installing UFW..."
-    apt update && apt install -y ufw
-    if command -v ufw &> /dev/null; then
-        echo "✅ UFW installed successfully."
-    else
-        echo "❌ UFW installation failed. Exiting..."
-        exit 1
-    fi
-else
-    echo "✅ UFW is already installed."
-fi
+# Bruteforce remove and reinstall UFW
+echo "🚨 Forcefully reinstalling UFW..."
+apt-get remove --purge -y ufw
+apt-get update
+apt-get install -y ufw
 
+# Verify UFW installation
+if command -v ufw &> /dev/null; then
+    echo "✅ UFW successfully installed."
+else
+    echo "❌ UFW installation failed. Exiting..."
+    exit 1
+fi
 
 echo "🔒 Configuring UFW firewall..."
 
