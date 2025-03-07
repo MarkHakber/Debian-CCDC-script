@@ -1,5 +1,7 @@
 # the password change 
 
+# ================================================
+
 #!/bin/bash
 
 # Ensure the script is run as root
@@ -25,5 +27,34 @@ fi
 
 echo "🎉 Password change complete!"
 
-# ----------------------------------------------
-# 
+# ================================================
+# ================================================
+# ================================================
+
+# bind local backup
+
+# ================================================
+
+# Define backup directory
+BACKUP_DIR="/root/backit"
+TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
+BACKUP_DEST="$BACKUP_DIR/bind_backup_$TIMESTAMP"
+
+# Create the backup directory if it doesn't exist
+mkdir -p "$BACKUP_DIR"
+
+# Backup the /etc/bind directory
+cp -r /etc/bind "$BACKUP_DEST"
+
+# Verify backup success
+if [[ -d "$BACKUP_DEST" ]]; then
+    echo "✅ Backup successful: $BACKUP_DEST"
+else
+    echo "❌ Backup failed!"
+    exit 1
+fi
+
+# ================================================
+# ================================================
+# ================================================
+
