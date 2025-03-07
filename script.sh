@@ -172,9 +172,17 @@ echo "msusk" > /tmp/tripwire-site.key
 twadmin --generate-keys --local-keyfile /etc/tripwire/msulk.key --site-keyfile /etc/tripwire/msusk.key < /tmp/tripwire-local.key
 twadmin --generate-keys --site-keyfile /etc/tripwire/msusk.key < /tmp/tripwire-site.key
 
-# Initialize Tripwire database
+# Initialize Tripwire and auto-confirm overwrites
 echo "🛠 Initializing Tripwire..."
-tripwire --init
+echo -e "y\ny\n" | tripwire --init
+
+# Verify that initialization completed
+if [ $? -eq 0 ]; then
+    echo "✅ Tripwire initialization completed successfully."
+else
+    echo "❌ Tripwire initialization failed."
+fi
+
 
 # Clean up temporary keys
 rm -f /tmp/tripwire-local.key /tmp/tripwire-site.key
