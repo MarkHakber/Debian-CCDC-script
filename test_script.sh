@@ -11,3 +11,5 @@ echo "📄 Log file 'test_log.txt' created."
 
 # Verify execution
 ls -l test_log.txt
+
+# Minor update to force GitHub refresh
